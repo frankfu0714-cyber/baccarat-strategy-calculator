@@ -86,19 +86,26 @@
       <input type="number" id="bankroll" value="50000" min="100" step="1000">
     </label>
 
-    <label>每次基本注 Base bet (NT$) <span>輸了就翻倍的起點</span>
-      <input type="number" id="baseBet" value="1000" min="10" step="100">
+    <label>每次基本注 Base bet <span id="baseUnit">(NT$)</span> <span>輸了就翻倍的起點</span>
+      <input type="number" id="baseBet" value="1000" min="0.01" step="100">
+      <div class="hint" id="baseResolved" style="display:none"></div>
     </label>
 
-    <label>目標獲利 Target profit (NT$) <span>贏到這個數就收手</span>
-      <input type="number" id="target" value="5000" min="100" step="1000">
+    <label>目標獲利 Target profit <span id="targetUnit">(NT$)</span> <span>贏到這個數就收手</span>
+      <input type="number" id="target" value="5000" min="0.01" step="1000">
+      <div class="hint" id="targetResolved" style="display:none"></div>
     </label>
+
+    <label class="toggle"><input type="checkbox" id="pctMode">
+      以「本金 %」設定基本注與目標 Set base bet &amp; target as % of bankroll</label>
+    <div class="hint">勾選後，基本注與目標改用百分比輸入。達標率與爆輸率只取決於比例，與本金絕對金額無關。</div>
 
     <label>勝率模型 Win model
       <select id="model">
         <option value="ideal">理想數學模型 50%（不抽水）</option>
         <option value="player">百家樂・閒 Player（≈49.32%，1賠1）</option>
         <option value="banker" selected>百家樂・莊 Banker（≈50.68%，抽5%水）</option>
+        <option value="bankerNC">百家樂・莊 免佣 No-commission（1賠1，莊6點半賠）</option>
         <option value="custom">自訂 Custom…</option>
       </select>
     </label>
@@ -154,6 +161,7 @@
         </div>
       </div>
       <div class="ev-line" id="evLine"></div>
+      <div class="hint" id="scaleNote" style="display:none;margin-top:8px"></div>
     </div>
 
     <div class="card">
@@ -194,10 +202,11 @@ function pct(x){ return (x*100).toFixed(2) + '%'; }
 
 function getModel(){
   const m = $('model').value;
-  if(m==='ideal')  return {win:0.5,    pay:1,    note:'理想模型，不抽水（EV=0）'};
-  if(m==='player') return {win:0.4932, pay:1,    note:'百家樂閒家，1賠1（莊家優勢約1.24%）'};
-  if(m==='banker') return {win:0.5068, pay:0.95, note:'百家樂莊家，抽5%水（莊家優勢約1.06%）'};
-  return {win:(+$('cWin').value)/100, pay:+$('cPay').value, note:'自訂模型'};
+  if(m==='ideal')   return {win:0.5,    pay:1,    half:0,      note:'理想模型，不抽水（EV=0）'};
+  if(m==='player')  return {win:0.4932, pay:1,    half:0,      note:'百家樂閒家，1賠1（莊家優勢約1.24%）'};
+  if(m==='banker')  return {win:0.5068, pay:0.95, half:0,      note:'百家樂莊家，抽5%水（莊家優勢約1.06%）'};
+  if(m==='bankerNC')return {win:0.5068, pay:1,    half:0.1175, note:'免佣莊，1賠1但莊6點只半賠（莊家優勢約1.46%）'};
+  return {win:(+$('cWin').value)/100, pay:+$('cPay').value, half:0, note:'自訂模型'};
 }
 
 // largest m such that base*(2^m - 1) <= bankroll  => survivable losses
@@ -208,7 +217,8 @@ function maxStreak(bankroll, base){
 }
 
 // Monte Carlo
-function simulate(bankroll, base, target, win, pay, winDouble, trials){
+function simulate(bankroll, base, target, win, pay, winDouble, trials, half){
+  half = half || 0;
   let success=0, sumEnd=0;
   for(let t=0;t<trials;t++){
     let bal=bankroll, bet=base, guard=0;
@@ -218,7 +228,8 @@ function simulate(bankroll, base, target, win, pay, winDouble, trials){
       if(bet>bal+1e-9){ break; } // can't place required bet -> bust/stop
       bal -= bet;
       if(Math.random()<win){
-        bal += bet*(1+pay);
+        const p = (half && Math.random()<half) ? pay*0.5 : pay; // 免佣莊6點半賠
+        bal += bet*(1+p);
         bet = winDouble ? bet*2 : base;
       }else{
         bet = bet*2;
@@ -251,14 +262,14 @@ function buildLadder(bankroll, base){
   }
 }
 
-function drawChart(bankroll, base, win, pay, winDouble){
+function drawChart(bankroll, base, win, pay, winDouble, half){
   const labels=[], fairData=[], simData=[];
   const maxT = Math.max(bankroll, base*20);
   for(let i=1;i<=8;i++){
     const T = Math.round((maxT*i/8)/base)*base || base*i;
     labels.push(fmt(T));
     fairData.push(+(bankroll/(bankroll+T)*100).toFixed(1));
-    simData.push(+(simulate(bankroll,base,T,win,pay,winDouble,6000).succ*100).toFixed(1));
+    simData.push(+(simulate(bankroll,base,T,win,pay,winDouble,6000,half).succ*100).toFixed(1));
   }
   if(chart) chart.destroy();
   chart=new Chart($('chart'),{
@@ -275,13 +286,32 @@ function drawChart(bankroll, base, win, pay, winDouble){
 }
 
 function run(){
-  const bankroll=+$('bankroll').value, base=+$('baseBet').value, target=+$('target').value;
+  const pctMode=$('pctMode').checked;
+  const bankroll=+$('bankroll').value;
+  let base, target;
+  if(pctMode){
+    base   = bankroll*(+$('baseBet').value)/100;
+    target = bankroll*(+$('target').value)/100;
+  } else {
+    base   = +$('baseBet').value;
+    target = +$('target').value;
+  }
   if(!(bankroll>0&&base>0&&target>0)||base>bankroll){ alert('請輸入有效數字，且基本注需小於本金。'); return; }
-  const {win,pay,note}=getModel();
+  if(pctMode){
+    $('baseResolved').style.display='block';   $('baseResolved').textContent='= NT$ '+fmt(base);
+    $('targetResolved').style.display='block'; $('targetResolved').textContent='= NT$ '+fmt(target);
+    $('scaleNote').style.display='block';
+    $('scaleNote').innerHTML='💡 基本注 '+(+$('baseBet').value)+'%、目標 '+(+$('target').value)+'% of bankroll。達標率與爆輸率只取決於這些比例 — 本金是 5 萬還是 500 萬，結果都相同。';
+  } else {
+    $('baseResolved').style.display='none';
+    $('targetResolved').style.display='none';
+    $('scaleNote').style.display='none';
+  }
+  const {win,pay,half,note}=getModel();
   const winDouble=$('winDouble').checked;
 
   const fair = bankroll/(bankroll+target);
-  const sim = simulate(bankroll,base,target,win,pay,winDouble,50000);
+  const sim = simulate(bankroll,base,target,win,pay,winDouble,50000,half);
   const surv = maxStreak(bankroll,base);
 
   $('rFair').textContent = pct(fair);
@@ -303,7 +333,7 @@ function run(){
     `<span class="pill">致命長龍：連輸 ${placeable} 把機率 ${pct(streakProb)}</span>`;
 
   buildLadder(bankroll,base);
-  drawChart(bankroll,base,win,pay,winDouble);
+  drawChart(bankroll,base,win,pay,winDouble,half);
 
   const ruin=1-sim.succ;
   $('realityBox').innerHTML =
@@ -314,6 +344,25 @@ function run(){
 }
 
 $('model').addEventListener('change',()=>{ $('customBox').style.display = $('model').value==='custom'?'block':'none'; });
+$('pctMode').addEventListener('change',()=>{
+  const on=$('pctMode').checked, bankroll=+$('bankroll').value||0;
+  $('baseUnit').textContent   = on?'(% of bankroll)':'(NT$)';
+  $('targetUnit').textContent = on?'(% of bankroll)':'(NT$)';
+  if(on){
+    if(bankroll>0){
+      $('baseBet').value = +((+$('baseBet').value)/bankroll*100).toFixed(2);
+      $('target').value  = +((+$('target').value)/bankroll*100).toFixed(2);
+    } else { $('baseBet').value=2; $('target').value=10; }
+    $('baseBet').step=0.5; $('target').step=1;
+  } else {
+    if(bankroll>0){
+      $('baseBet').value = Math.round(bankroll*(+$('baseBet').value)/100);
+      $('target').value  = Math.round(bankroll*(+$('target').value)/100);
+    }
+    $('baseBet').step=100; $('target').step=1000;
+  }
+  run();
+});
 $('run').addEventListener('click',run);
 run();
 </script>
