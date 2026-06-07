@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>賭局策略機率計算機 | Baccarat Strategy Calculator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --navy:#0f2540; --navy2:#16345c; --green:#1f9d6b; --green-d:#137a52;
+    --red:#d64545; --amber:#d99000; --bg:#f4f6f9; --card:#ffffff;
+    --line:#e3e8ef; --txt:#1d2733; --muted:#6b7785; --chip:#eef3f8;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:"Segoe UI","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+    background:var(--bg);color:var(--txt);line-height:1.55;}
+  header{background:linear-gradient(135deg,var(--navy),var(--navy2));color:#fff;padding:28px 24px 22px;}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 18px;}
+  header .wrap{padding:0;max-width:1080px;}
+  h1{margin:0 0 4px;font-size:24px;letter-spacing:.5px;}
+  .sub{color:#bcd0e6;font-size:14px;margin:0;}
+  .tagline{margin-top:10px;font-size:12.5px;color:#9fb8d4;font-style:italic;}
+  main{max-width:1080px;margin:22px auto 60px;padding:0 18px;}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:22px;}
+  @media(max-width:860px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;
+    box-shadow:0 1px 3px rgba(15,37,64,.05);}
+  .card h2{font-size:15px;margin:0 0 16px;color:var(--navy);display:flex;align-items:center;gap:8px;}
+  .card h2 small{font-weight:400;color:var(--muted);font-size:12px;}
+  label{display:block;font-size:13px;margin:14px 0 5px;color:var(--txt);font-weight:600;}
+  label span{font-weight:400;color:var(--muted);}
+  input[type=number],select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;
+    font-size:15px;background:#fbfcfe;color:var(--txt);}
+  input:focus,select:focus{outline:none;border-color:var(--green);background:#fff;}
+  .row{display:flex;gap:10px;}
+  .row>div{flex:1;}
+  .toggle{display:flex;align-items:center;gap:9px;margin-top:14px;font-size:13px;color:var(--txt);cursor:pointer;}
+  .toggle input{width:auto;}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:4px;}
+  button.calc{width:100%;margin-top:20px;background:var(--green);color:#fff;border:none;padding:13px;
+    border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;transition:.15s;}
+  button.calc:hover{background:var(--green-d);}
+  .results{display:flex;flex-direction:column;gap:22px;}
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+  @media(max-width:520px){.kpis{grid-template-columns:1fr;}}
+  .kpi{border:1px solid var(--line);border-radius:12px;padding:15px 16px;background:#fbfcfe;}
+  .kpi .k-label{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .kpi .k-val{font-size:27px;font-weight:800;line-height:1.1;}
+  .kpi .k-note{font-size:11.5px;color:var(--muted);margin-top:5px;}
+  .k-green{color:var(--green-d);} .k-red{color:var(--red);} .k-amber{color:var(--amber);} .k-navy{color:var(--navy);}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;}
+  th,td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);}
+  th:first-child,td:first-child{text-align:left;}
+  thead th{color:var(--muted);font-weight:600;font-size:12px;background:#fafbfd;}
+  tr.bust td{background:#fdecec;color:var(--red);font-weight:700;}
+  .warn{border-left:4px solid var(--amber);background:#fff8e8;border-radius:8px;padding:14px 16px;font-size:13.5px;}
+  .warn.red{border-left-color:var(--red);background:#fdecec;}
+  .warn b{color:var(--navy);}
+  .chartbox{position:relative;height:240px;}
+  .pill{display:inline-block;background:var(--chip);color:var(--navy);border-radius:20px;padding:3px 10px;
+    font-size:11.5px;margin:2px 4px 2px 0;}
+  .ev-line{font-size:13.5px;margin-top:10px;padding:11px 14px;border-radius:8px;background:#eef3f8;}
+  footer{max-width:1080px;margin:0 auto;padding:0 18px 50px;color:var(--muted);font-size:12px;text-align:center;}
+  .disclaimer{background:#0f2540;color:#cfe0f2;padding:18px;border-radius:12px;font-size:12.5px;margin-top:24px;line-height:1.7;}
+  .disclaimer b{color:#fff;}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>🎲 賭局策略機率計算機</h1>
+    <p class="sub">Baccarat Martingale Strategy &amp; Probability Calculator</p>
+    <p class="tagline">外表像退休理財試算表，內核是「本多終勝（馬丁格爾／凹單）」的冷酷數學。下注前，先算清楚機率。<br>
+      Looks like a retirement planner — but shows you the real odds before you bet.</p>
+  </div>
+</header>
+
+<main>
+<div class="grid">
+
+  <!-- INPUT PANEL -->
+  <section class="card">
+    <h2>① 設定你的玩法 <small>Your plan</small></h2>
+
+    <label>本金 Bankroll (NT$)
+      <input type="number" id="bankroll" value="50000" min="100" step="1000">
+    </label>
+
+    <label>每次基本注 Base bet (NT$) <span>輸了就翻倍的起點</span>
+      <input type="number" id="baseBet" value="1000" min="10" step="100">
+    </label>
+
+    <label>目標獲利 Target profit (NT$) <span>贏到這個數就收手</span>
+      <input type="number" id="target" value="5000" min="100" step="1000">
+    </label>
+
+    <label>勝率模型 Win model
+      <select id="model">
+        <option value="ideal">理想數學模型 50%（不抽水）</option>
+        <option value="player">百家樂・閒 Player（≈49.32%，1賠1）</option>
+        <option value="banker" selected>百家樂・莊 Banker（≈50.68%，抽5%水）</option>
+        <option value="custom">自訂 Custom…</option>
+      </select>
+    </label>
+
+    <div id="customBox" style="display:none">
+      <div class="row">
+        <div>
+          <label>單局勝率 % <span>Win %</span>
+            <input type="number" id="cWin" value="49.32" min="1" max="99" step="0.01">
+          </label>
+        </div>
+        <div>
+          <label>賠率 Payout <span>贏一注賠幾倍</span>
+            <input type="number" id="cPay" value="1" min="0.1" max="2" step="0.01">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <label class="toggle"><input type="checkbox" id="winDouble">
+      贏了也翻倍滾下去（過關斬將 / Paroli）— 製造「爆贏爆輸」</label>
+    <div class="hint">不勾＝標準馬丁格爾：贏了就重設回基本注。</div>
+
+    <button class="calc" id="run">計算機率 Calculate</button>
+    <div class="hint" style="margin-top:12px">模擬以 50,000 局蒙地卡羅運算，數字每次略有浮動屬正常。</div>
+  </section>
+
+  <!-- RESULTS -->
+  <section class="results">
+
+    <div class="card">
+      <h2>② 結果 <small>The odds</small></h2>
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k-label">理想數學達標率 <span>Fair-game success</span></div>
+          <div class="k-val k-navy" id="rFair">–</div>
+          <div class="k-note">公式 本金 ÷ (本金+目標) = B/(B+T)</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">模擬實際達標率 <span>Simulated (含抽水)</span></div>
+          <div class="k-val k-green" id="rSim">–</div>
+          <div class="k-note" id="rSimNote">含莊家抽水的真實估計</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">爆輸機率 <span>Chance of ruin</span></div>
+          <div class="k-val k-red" id="rBust">–</div>
+          <div class="k-note">遇到長龍、本金歸零</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">最大可承受連輸 <span>Max losing streak</span></div>
+          <div class="k-val k-amber" id="rStreak">–</div>
+          <div class="k-note" id="rStreakNote"></div>
+        </div>
+      </div>
+      <div class="ev-line" id="evLine"></div>
+    </div>
+
+    <div class="card">
+      <h2>③ 翻倍階梯 <small>The doubling ladder — 連輸幾把就斷纜</small></h2>
+      <table id="ladder">
+        <thead><tr><th>第幾把</th><th>本把下注</th><th>累計投入</th><th>需翻本金額</th><th>剩餘本金</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>④ 目標 vs 達標率 <small>Higher target = lower odds</small></h2>
+      <div class="chartbox"><canvas id="chart"></canvas></div>
+    </div>
+
+    <div class="warn red" id="realityBox"></div>
+
+  </section>
+</div>
+
+<div class="disclaimer">
+  <b>數學真相 / The bottom line.</b> 馬丁格爾不會改變期望值。在公平賭局裡期望值＝0；只要有抽水（百家樂莊 1.06% / 閒 1.24% 的莊家優勢），長期期望值<b>必為負</b>。你是用很高的機率去贏一筆小錢，同時用很低的機率輸掉全部本金 —— 這正是賭場不怕你倍投、還要設「限紅」的原因。<br><br>
+  <b>This is an educational probability tool, not gambling advice.</b> No betting system overcomes the house edge. If gambling is affecting your life or finances, consider reaching out for support — in Taiwan you can call the 安心專線 1925; many regions have free, confidential gambling helplines.
+</div>
+</main>
+
+<footer>
+  賭局策略機率計算機 · 純數學教學用途 · 不構成博弈建議。<br>
+  Baccarat Strategy &amp; Probability Calculator · for educational use only.
+</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+let chart;
+
+function fmt(n){ return Math.round(n).toLocaleString('en-US'); }
+function pct(x){ return (x*100).toFixed(2) + '%'; }
+
+function getModel(){
+  const m = $('model').value;
+  if(m==='ideal')  return {win:0.5,    pay:1,    note:'理想模型，不抽水（EV=0）'};
+  if(m==='player') return {win:0.4932, pay:1,    note:'百家樂閒家，1賠1（莊家優勢約1.24%）'};
+  if(m==='banker') return {win:0.5068, pay:0.95, note:'百家樂莊家，抽5%水（莊家優勢約1.06%）'};
+  return {win:(+$('cWin').value)/100, pay:+$('cPay').value, note:'自訂模型'};
+}
+
+// largest m such that base*(2^m - 1) <= bankroll  => survivable losses
+function maxStreak(bankroll, base){
+  let m=0;
+  while(base*(Math.pow(2,m+1)-1) <= bankroll) m++;
+  return m; // can absorb m losses (place m+? ) -> bust on (m+1)th when can't cover
+}
+
+// Monte Carlo
+function simulate(bankroll, base, target, win, pay, winDouble, trials){
+  let success=0, sumEnd=0;
+  for(let t=0;t<trials;t++){
+    let bal=bankroll, bet=base, guard=0;
+    while(true){
+      if(++guard>200000){ break; }
+      if(bal-bankroll >= target){ success++; break; }
+      if(bet>bal+1e-9){ break; } // can't place required bet -> bust/stop
+      bal -= bet;
+      if(Math.random()<win){
+        bal += bet*(1+pay);
+        bet = winDouble ? bet*2 : base;
+      }else{
+        bet = bet*2;
+      }
+    }
+    sumEnd += (bal-bankroll);
+  }
+  return {succ:success/trials, ev:sumEnd/trials};
+}
+
+function buildLadder(bankroll, base){
+  const tb=$('ladder').querySelector('tbody'); tb.innerHTML='';
+  let cum=0, remaining=bankroll, level=0;
+  const surv=maxStreak(bankroll,base);
+  for(let i=1;i<=Math.min(surv+2,14);i++){
+    const bet=base*Math.pow(2,i-1);
+    const canPlace = bet<=remaining;
+    cum += canPlace?bet:0;
+    const after = canPlace? remaining-bet : remaining;
+    const tr=document.createElement('tr');
+    const next=base*Math.pow(2,i); // amount needed to keep going after this loss
+    if(!canPlace){
+      tr.className='bust';
+      tr.innerHTML=`<td>第${i}把</td><td colspan="4">需下注 ${fmt(bet)}，但只剩 ${fmt(remaining)} → 斷纜爆輸 💥</td>`;
+      tb.appendChild(tr); break;
+    }
+    tr.innerHTML=`<td>第${i}把</td><td>${fmt(bet)}</td><td>${fmt(cum)}</td><td>${fmt(next)}</td><td>${fmt(after)}</td>`;
+    tb.appendChild(tr);
+    remaining=after;
+  }
+}
+
+function drawChart(bankroll, base, win, pay, winDouble){
+  const labels=[], fairData=[], simData=[];
+  const maxT = Math.max(bankroll, base*20);
+  for(let i=1;i<=8;i++){
+    const T = Math.round((maxT*i/8)/base)*base || base*i;
+    labels.push(fmt(T));
+    fairData.push(+(bankroll/(bankroll+T)*100).toFixed(1));
+    simData.push(+(simulate(bankroll,base,T,win,pay,winDouble,6000).succ*100).toFixed(1));
+  }
+  if(chart) chart.destroy();
+  chart=new Chart($('chart'),{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'理想數學達標率 %',data:fairData,borderColor:'#16345c',backgroundColor:'rgba(22,52,92,.08)',tension:.3,fill:true},
+      {label:'模擬實際達標率 %（含抽水）',data:simData,borderColor:'#1f9d6b',backgroundColor:'rgba(31,157,107,.08)',tension:.3,fill:true}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{y:{min:0,max:100,title:{display:true,text:'達標機率 %'}},
+              x:{title:{display:true,text:'目標獲利 Target profit (NT$)'}}},
+      plugins:{legend:{labels:{boxWidth:14,font:{size:11}}}}}
+  });
+}
+
+function run(){
+  const bankroll=+$('bankroll').value, base=+$('baseBet').value, target=+$('target').value;
+  if(!(bankroll>0&&base>0&&target>0)||base>bankroll){ alert('請輸入有效數字，且基本注需小於本金。'); return; }
+  const {win,pay,note}=getModel();
+  const winDouble=$('winDouble').checked;
+
+  const fair = bankroll/(bankroll+target);
+  const sim = simulate(bankroll,base,target,win,pay,winDouble,50000);
+  const surv = maxStreak(bankroll,base);
+
+  $('rFair').textContent = pct(fair);
+  $('rSim').textContent  = pct(sim.succ);
+  $('rSimNote').textContent = note;
+  $('rBust').textContent = pct(1-sim.succ);
+  const placeable = surv;                   // 可連續下注/連輸的把數
+  const bustBet = base*Math.pow(2,placeable); // 下一把無法負擔的金額
+  $('rStreak').textContent = placeable + ' 連輸';
+  $('rStreakNote').textContent = `連輸 ${placeable} 把後，第 ${placeable+1} 把需下注 ${fmt(bustBet)}，本金不夠 → 爆輸`;
+
+  const streakProb = Math.pow(1-win, placeable);
+  const evColor = sim.ev<-1 ? 'k-red' : (sim.ev>1?'k-green':'k-navy');
+  $('evLine').innerHTML =
+    `<b>每一回合（玩到收手或爆輸）期望損益：</b> <span class="${evColor}" style="font-weight:800">`+
+    `${sim.ev>=0?'+':''}${fmt(sim.ev)} 元</span>　`+
+    `<span class="pill">單局勝率 ${pct(win)}</span>`+
+    `<span class="pill">賠率 ${pay}:1</span>`+
+    `<span class="pill">致命長龍：連輸 ${placeable} 把機率 ${pct(streakProb)}</span>`;
+
+  buildLadder(bankroll,base);
+  drawChart(bankroll,base,win,pay,winDouble);
+
+  const ruin=1-sim.succ;
+  $('realityBox').innerHTML =
+    `⚠️ <b>現實提醒：</b>你打算用 <b>${pct(sim.succ)}</b> 的機率去贏 <b>${fmt(target)}</b> 元，`+
+    `但同時押上 <b>${pct(ruin)}</b> 的機率輸掉全部 <b>${fmt(bankroll)}</b> 元本金。`+
+    `只要連輸 <b>${placeable}</b> 把（每靴牌幾乎必然出現的長龍），資金鏈就斷。`+
+    `${sim.ev<-1?' 在此抽水模型下，玩越多次、期望損失越大。':''}`;
+}
+
+$('model').addEventListener('change',()=>{ $('customBox').style.display = $('model').value==='custom'?'block':'none'; });
+$('run').addEventListener('click',run);
+run();
+</script>
+</body>
+</html>
